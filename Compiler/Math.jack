@@ -1,0 +1,115 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/12/Math.jack
+
+/**
+ * A basic math library.
+ */
+class Math 
+{
+
+	static int     xOperand;
+	static int     yOperand;
+	static int     sum;
+	static boolean negate;
+	
+    /** Initializes the library. */
+    function void init() {
+		return;
+    }
+
+    /** Returns the absolute value of x. */
+    function int abs(int x) 
+	{
+		if( x < 0 )
+		{
+			return -x;
+		}
+		
+		return x;
+    }
+
+    /** Returns the product of x and y. */
+    function int multiply(int x, int y) 
+	{
+		let xOperand = x;
+		let yOperand = y;
+		asm
+		{
+			push ecx;
+			push edx;
+			push edi;
+			push esi;
+				
+			xor  edx, edx;
+			mov  eax, Math$0;
+			imul eax, Math$1;
+			mov  Math$2, eax;
+			
+			pop esi;
+			pop edi;
+			pop edx;
+			pop ecx;
+		}
+		
+		return sum;
+    }
+
+    /** Returns the integer part of x/y. */
+    function int divide(int x, int y) 
+	{
+		let xOperand = x;
+		let yOperand = y;
+		asm
+		{
+			push ecx;
+			push edx;
+			push edi;
+			push esi;
+			
+			xor  edx, edx;
+			mov  eax, Math$0  ;
+			mov  ebx, Math$1  ;
+			idiv ebx         ;
+			mov  Math$2, eax;
+			
+			pop esi;
+			pop edi;
+			pop edx;
+			pop ecx;
+		}
+		
+		return sum;
+    }
+
+    /** Returns the integer part of the square root of x. */
+    function int sqrt(int x)
+	{
+		return 0;
+    }
+
+    /** Returns the greater number. */
+    function int max(int a, int b) 
+	{
+		if( a > b )
+		{
+			return a;
+		}
+		
+		return b;
+    }
+
+    /** Returns the smaller number. */
+    function int min(int a, int b) 
+	{
+		if( a < b )
+		{
+			return a;
+		}
+		
+		return b;
+    }
+	
+
+}

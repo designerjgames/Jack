@@ -1,0 +1,266 @@
+// This file is part of the materials accompanying the book 
+// "The Elements of Computing Systems" by Nisan and Schocken, 
+// MIT Press. Book site: www.idc.ac.il/tecs
+// File name: projects/12/Screen.jack
+
+/**
+ * Graphic screen library.
+ */
+class Screen 
+{
+    static boolean isBlack;
+    static int SCREEN_ADDR;
+    static int KEYBOARD_ADDR;
+    static Array int twoToThe;
+	
+    /** Initializes the Screen. */
+    function void init() 
+    {
+        var int i;
+        var int currentVal;
+        
+        let twoToThe = Array.Create(16);
+        let isBlack = true;
+        let SCREEN_ADDR = 16384;
+        let KEYBOARD_ADDR = 24576;
+
+        let currentVal = 1;
+        let i = 0;
+        while(i < 16)
+        {
+            let twoToThe[i] = currentVal;
+			let currentVal = currentVal + currentVal;
+			let i = i + 1;
+        }
+		
+		asm
+		{
+			push ecx;
+	        push edx;
+	        push edi;
+	        push esi;
+			
+			// Create a win32 window
+			mov    wc.cbSize,SIZEOF WNDCLASSEX;
+			mov    wc.style, CS_HREDRAW or CS_VREDRAW;
+			mov    wc.lpfnWndProc, OFFSET WndProc;
+			mov    wc.cbClsExtra,NULL;
+			mov    wc.cbWndExtra,NULL;
+			push   hInst;
+			pop    wc.hInstance;
+			mov    wc.hbrBackground,COLOR_WINDOW+1;
+			mov    wc.lpszMenuName,NULL;
+			mov    wc.lpszClassName,OFFSET ClassName;
+			invoke LoadIcon,NULL,IDI_APPLICATION;
+			mov    wc.hIcon,eax;
+			mov    wc.hIconSm,0;
+			invoke LoadCursor,NULL,IDC_ARROW;
+			mov    wc.hCursor,eax;
+			invoke RegisterClassEx, addr wc;
+			INVOKE CreateWindowEx, NULL, ADDR ClassName, ADDR AppName, WS_OVERLAPPED or WS_CAPTION or WS_SYSMENU or WS_MINIMIZEBOX, CW_USEDEFAULT, CW_USEDEFAULT, 512, 256, NULL, NULL, hInst, NULL;
+			mov ScreenHandle, eax;
+			INVOKE GetClientRect, ScreenHandle, offset rct;
+			mov eax, 512;
+			sub eax, rct.right;
+			add eax, 512;
+			mov rct.right, eax;
+			mov eax, 256;
+			sub eax, rct.bottom;
+			add eax, 256;
+			mov rct.bottom, eax;
+			invoke SetWindowPos, ScreenHandle, NULL, 0, 0, rct.right, rct.bottom, 0;
+			INVOKE ShowWindow, ScreenHandle,SW_SHOWNORMAL;
+			INVOKE UpdateWindow, ScreenHandle;
+			invoke GetDC, ScreenHandle;
+			mov    DeviceContextHandle, eax;
+			
+			invoke CreateCompatibleDC, NULL;
+			mov BackBufferDeviceContextHandle, eax;
+			
+			invoke  CreateCompatibleBitmap, DeviceContextHandle, 512, 256;
+			mov hBitmap, eax;
+			
+			invoke SelectObject, BackBufferDeviceContextHandle, hBitmap;
+			
+			invoke CreateSolidBrush, 16777215; 
+			mov hWhitePixel, eax;
+			
+			invoke CreateSolidBrush, 0;
+			mov hBlackPixel, eax;
+
+			pop esi;
+	        pop edi;
+	        pop edx;
+	        pop ecx;
+		}
+		
+		do clearScreen();
+		
+        return;
+    }
+
+    /** Erases the whole screen. */
+    function void clearScreen() 
+    {
+		asm
+		{
+		push ecx;
+		push edx;
+		push edi;
+		push esi;
+			
+		push WHITENESS;
+		push NULL;
+		push NULL;
+		push NULL;
+		push 256;
+		push 512;
+		push 0;
+		push 0;
+		push BackBufferDeviceContextHandle;
+		call BitBlt;
+		 
+		pop esi;
+		pop edi;
+		pop edx;
+		pop ecx;
+		}
+
+        return;
+    }
+	
+	 function void Present()
+	 {
+	 	asm
+		{
+	 	push ecx;
+		push edx;
+		push edi;
+		push esi;
+
+		invoke BitBlt, DeviceContextHandle, 0, 0, 512, 256, BackBufferDeviceContextHandle, 0, 0, SRCCOPY;
+		invoke InvalidateRect, ScreenHandle, NULL, 0;
+
+		pop esi;
+		pop edi;
+		pop edx;
+		pop ecx;
+		}
+		
+		return;
+	 }
+
+    /** Sets the color to be used in further draw commands
+     *  where white = false, black = true. */
+    function void setColor(boolean b) 
+    {
+        let isBlack = b;
+        return;
+    }
+
+    /** Draws the (x, y) pixel. */
+    function void drawPixel(int x, int y) 
+    {
+        var int addr;
+        var int pixelValue;
+        var int bitIndex;
+        var int xDiv16;
+
+        if((x < 0) | (x > 511) | (y < 0) | (y > 255))
+        {
+            do Sys.error(7);
+        }
+
+        let xDiv16 = x / 16;
+        let bitIndex = x - (xDiv16 * 16);
+        let addr = SCREEN_ADDR + ((y * 32) + xDiv16);
+        let pixelValue = Memory.peek(addr);
+        if(isBlack)
+        {
+            let pixelValue = twoToThe[bitIndex] | pixelValue;
+        }
+        else
+        {
+            let pixelValue = (~twoToThe[bitIndex]) & pixelValue;
+        }
+        do Memory.poke(addr, pixelValue);
+        return;
+    }
+
+    /** Draws a line from pixel (x1, y1) to (x2, y2). */
+    function void drawLine(int x1, int y1, int x2, int y2) 
+    {
+        var int adyMinusbdx; //autoinitialized to 0
+        var int a, b, dx, dy;
+        var int xBase, xEnd;
+        var int yBase, yEnd;
+        let dx = x2 - x1;
+        let dy = y2 - y1;
+
+        if(dx = 0)
+        {
+            let yBase = y2;
+            let yEnd = y1;
+            if(y1 < y2)
+            {
+                let yBase = y1;
+                let yEnd = y2;
+            }
+            while(~(yBase > yEnd)) //yBase <= yEnd
+            {
+                do Screen.drawPixel(x1, yBase);
+                let yBase = yBase + 1;
+            }
+        }
+        if(dy = 0)
+        {
+            let xBase = x2;
+            let xEnd = x1;
+            if(x1 < x2)
+            {
+                let xBase = x1;
+                let xEnd = x2;
+            }
+            while(~(xBase > xEnd)) //xBase <= xEnd
+            {
+                do Screen.drawPixel(xBase, y1);
+                let xBase = xBase + 1;
+            }
+        }
+        while((~(a > dx)) & (~(b > dy)))
+        {
+            do Screen.drawPixel(x1 + a, y1 + b);
+            if(adyMinusbdx < 0)
+            {
+                let a = a + 1;
+                let adyMinusbdx = adyMinusbdx + dy;
+            }
+            else
+            {
+                let b = b + 1;
+                let adyMinusbdx = adyMinusbdx - dx;
+            }
+        }
+        return;
+    }
+
+    /** Draws a filled rectangle where the top left corner
+     *  is (x1, y1) and the bottom right corner is (x2, y2). */
+    function void drawRectangle(int x1, int y1, int x2, int y2) 
+    {
+        var int yCounter;
+        let yCounter = y1;
+        while(yCounter < y2)
+        {
+            do Screen.drawLine(x1, yCounter, x2, yCounter);
+            let yCounter = yCounter + 1;
+        }
+        return;
+    }
+
+    /** Draws a filled circle of radius r around (cx, cy). */
+    function void drawCircle(int cx, int cy, int r) 
+    {
+        return;
+    }
+}
